@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GymFlow - Treinos & Nutrição Personalizada</title>
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="GymFlow - Seu aplicativo completo para treinos de musculação personalizados, acompanhamento nutricional detalhado e compartilhamento de conquistas.">
+  <meta name="theme-color" content="#090d16">
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css">
+  <!-- Chart.js for data visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Canvas Confetti for celebrating finished workouts -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+
+  <!-- Background decorative glows -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <!-- App Wrapper (Mobile Mockup on Desktop, Fullscreen on Mobile) -->
+  <div class="app-container">
+    
+    <!-- App Header -->
+    <header class="app-header">
+      <div class="header-logo">
+        <i class="fa-solid fa-dumbbell logo-icon"></i>
+        <span>Gym<span class="gradient-text">Flow</span></span>
+      </div>
+      <div class="header-actions">
+        <button id="btn-notifications" class="header-btn" aria-label="Notificações">
+          <i class="fa-regular fa-bell"></i>
+          <span class="badge"></span>
+        </button>
+        <button id="btn-user-profile" class="header-btn-profile" aria-label="Perfil do Usuário">
+          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Avatar" id="user-avatar">
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Screens Container (TABS) -->
+    <main class="app-main">
+      
+      <!-- SCREEN 1: DASHBOARD (INÍCIO) -->
+      <section id="screen-dashboard" class="app-screen active">
+        <div class="screen-header">
+          <h1 class="welcome-text">Olá, <span id="span-user-name">Atleta</span>! 👋</h1>
+          <p class="subtitle-text">Pronto para esmagar as metas de hoje?</p>
+        </div>
+
+        <!-- Streak & Quick Stats -->
+        <div class="quick-stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon-wrapper purple">
+              <i class="fa-solid fa-fire"></i>
+            </div>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-streak">5</span>
+              <span class="stat-label">Dias seguidos</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon-wrapper green">
+              <i class="fa-solid fa-droplet"></i>
+            </div>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-water">0ml</span>
+              <span class="stat-label">Meta de Água</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Card: Daily Workout -->
+        <div class="featured-card gym-card">
+          <div class="featured-content">
+            <span class="badge-featured">HOJE</span>
+            <h2 id="featured-workout-title">Treino de Hoje</h2>
+            <p id="featured-workout-desc">Selecione ou crie seu plano personalizado para hoje.</p>
+            <button id="btn-start-today-workout" class="btn btn-primary btn-glow">
+              <i class="fa-solid fa-play"></i> Iniciar Treino
+            </button>
+          </div>
+          <div class="featured-illustration">
+            <i class="fa-solid fa-person-running"></i>
+          </div>
+        </div>
+
+        <!-- Quick Nutrition Progress Summary -->
+        <div class="section-container">
+          <div class="section-title-row">
+            <h3>Nutrição do Dia</h3>
+            <button class="text-link" onclick="switchTab('nutrition')">Ver Detalhes</button>
+          </div>
+          <div class="nutrition-summary-card">
+            <div class="progress-ring-container">
+              <div class="progress-ring-label">
+                <span class="calories-value" id="dash-cal-consumed">0</span>
+                <span class="calories-unit">/ <span id="dash-cal-target">2000</span> kcal</span>
+              </div>
+              <svg class="progress-ring" width="120" height="120">
+                <circle class="progress-ring__circle-bg" stroke="rgba(255,255,255,0.05)" stroke-width="8" fill="transparent" r="50" cx="60" cy="60"/>
+                <circle class="progress-ring__circle" id="dash-cal-ring" stroke="url(#gradient-purple-pink)" stroke-width="8" fill="transparent" r="50" cx="60" cy="60"/>
+                <defs>
+                  <linearGradient id="gradient-purple-pink" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#8b5cf6" />
+                    <stop offset="100%" stop-color="#ec4899" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <div class="macros-mini-bars">
+              <div class="macro-bar-item">
+                <div class="macro-meta">
+                  <span class="macro-label">Proteínas</span>
+                  <span class="macro-val" id="dash-p-val">0g / 130g</span>
+                </div>
+                <div class="macro-bar-bg"><div class="macro-bar-fill protein" id="dash-p-fill" style="width: 0%"></div></div>
+              </div>
+              <div class="macro-bar-item">
+                <div class="macro-meta">
+                  <span class="macro-label">Carboidratos</span>
+                  <span class="macro-val" id="dash-c-val">0g / 220g</span>
+                </div>
+                <div class="macro-bar-bg"><div class="macro-bar-fill carb" id="dash-c-fill" style="width: 0%"></div></div>
+              </div>
+              <div class="macro-bar-item">
+                <div class="macro-meta">
+                  <span class="macro-label">Gorduras</span>
+                  <span class="macro-val" id="dash-f-val">0g / 65g</span>
+                </div>
+                <div class="macro-bar-bg"><div class="macro-bar-fill fat" id="dash-f-fill" style="width: 0%"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Weekly Activity Calendar Preview -->
+        <div class="section-container">
+          <h3>Frequência Semanal</h3>
+          <div class="week-calendar" id="week-calendar-container">
+            <!-- Filled programmatically -->
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN 2: WORKOUTS (TREINOS) -->
+      <section id="screen-workouts" class="app-screen">
+        <div class="screen-header-row">
+          <div>
+            <h1 class="screen-title">Meus Treinos</h1>
+            <p class="subtitle-text">Personalize sua rotina semanal</p>
+          </div>
+          <div class="workout-header-actions" style="display: flex; gap: 8px;">
+            <button id="btn-open-library" class="btn btn-secondary" style="padding: 10px 14px; border-radius: 14px;" aria-label="Biblioteca de Exercícios" title="Biblioteca de Exercícios">
+              <i class="fa-solid fa-book-bookmark"></i>
+            </button>
+            <button id="btn-create-workout" class="btn-icon-accent" aria-label="Criar Treino" title="Criar Treino">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Workout Routine Tabs / List -->
+        <div class="workout-routines-list" id="workouts-list-container">
+          <!-- Populated programmatically -->
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Custom Workout Builder Form (Hidden by default, shown inside routine list overlay or modal) -->
+        <div class="section-container">
+          <div class="cta-banner">
+            <div class="cta-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+            <div class="cta-body">
+              <h4>Quer um treino sob medida?</h4>
+              <p>Monte sua ficha personalizada com qualquer exercício da biblioteca.</p>
+              <button class="btn btn-secondary btn-sm" id="btn-open-creator">Criar Nova Ficha</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN 3: TEAM / CONNECTION (EQUIPE & VINCULAÇÃO) -->
+      <section id="screen-team" class="app-screen">
+        <div class="screen-header">
+          <h1 class="screen-title">Conexão Equipe</h1>
+          <p class="subtitle-text">Vincule atleta e personal trainer</p>
+        </div>
+
+        <!-- Segmented Role Control Switch -->
+        <div class="segmented-control">
+          <button class="control-btn active" id="btn-role-athlete">Sou Atleta</button>
+          <button class="control-btn" id="btn-role-personal">Sou Personal</button>
+        </div>
+
+        <!-- ATHLETE VIEW PANEL -->
+        <div id="panel-athlete-role" class="role-panel active">
+          <!-- Unlinked State Card -->
+          <div class="card-base athlete-connection-card" id="athlete-unlinked-view">
+            <div class="connection-icon-header"><i class="fa-solid fa-user-lock"></i></div>
+            <h3>Vincular Personal Trainer</h3>
+            <p class="form-hint" style="margin-bottom: 16px; text-align: center;">Insira as credenciais do seu treinador para que ele gerencie suas rotinas de treino e metas.</p>
+            
+            <div class="form-group">
+              <label for="input-link-personal-name">Nome do Personal</label>
+              <input type="text" id="input-link-personal-name" placeholder="Ex: Prof. Roberto Costa">
+            </div>
+            <div class="form-group">
+              <label for="input-link-personal-cref">CREF / Registro Profissional</label>
+              <input type="text" id="input-link-personal-cref" placeholder="Ex: CREF 123456-G/SP">
+            </div>
+            <button class="btn btn-primary btn-glow btn-block" id="btn-link-personal-action">
+              <i class="fa-solid fa-link"></i> Conectar com Personal
+            </button>
+          </div>
+
+          <!-- Linked State Card -->
+          <div class="card-base athlete-connection-card" id="athlete-linked-view" style="display: none;">
+            <div class="personal-badge-info">
+              <div class="avatar-decor"><i class="fa-solid fa-user-tie"></i></div>
+              <div>
+                <h3 id="linked-personal-name">Prof. Roberto Costa</h3>
+                <span class="cref-tag" id="linked-personal-cref">CREF 123456-G/SP</span>
+              </div>
+            </div>
+            <div class="connection-status-pill"><i class="fa-solid fa-circle-check"></i> Personal Vinculado</div>
+            
+            <button class="btn btn-secondary btn-sm btn-block" id="btn-unlink-personal-action" style="margin-top: 14px;">
+              <i class="fa-solid fa-link-slash"></i> Desvincular Personal
+            </button>
+          </div>
+
+          <!-- Messages / Recommendations from Personal -->
+          <div class="section-container" id="athlete-messages-section" style="display: none;">
+            <h3>Mensagens do seu Treinador</h3>
+            <div class="messages-chat-list" id="athlete-messages-list">
+              <!-- Programmatic feedback cards -->
+            </div>
+          </div>
+        </div>
+
+        <!-- PERSONAL TRAINER VIEW PANEL -->
+        <div id="panel-personal-role" class="role-panel">
+          <div class="personal-dashboard-header">
+            <h3>Alunos sob sua Gestão</h3>
+            <button class="btn btn-primary btn-sm" id="btn-open-create-athlete-modal">
+              <i class="fa-solid fa-user-plus"></i> Novo Aluno
+            </button>
+          </div>
+
+          <!-- Athletes List -->
+          <div class="managed-athletes-list" id="managed-athletes-container">
+            <!-- Programmatic athletes list -->
+          </div>
+        </div>
+      </section>
+
+
+      <!-- SCREEN 4: NUTRITION (NUTRIÇÃO) -->
+      <section id="screen-nutrition" class="app-screen">
+        <div class="screen-header">
+          <h1 class="screen-title">Nutrição</h1>
+          <p class="subtitle-text">Diário alimentar e controle calórico diário</p>
+        </div>
+
+        <!-- Daily Calorie Tracking Dashboard -->
+        <div class="nutrition-card-expanded">
+          <div class="nutrition-nums-grid">
+            <div class="nutri-num-item">
+              <span class="nutri-val highlight" id="nutri-cal-target">2000</span>
+              <span class="nutri-lbl">Meta Kcal</span>
+            </div>
+            <div class="nutri-num-sign"><i class="fa-solid fa-minus"></i></div>
+            <div class="nutri-num-item">
+              <span class="nutri-val" id="nutri-cal-consumed">0</span>
+              <span class="nutri-lbl">Consumido</span>
+            </div>
+            <div class="nutri-num-sign"><i class="fa-solid fa-plus"></i></div>
+            <div class="nutri-num-item">
+              <span class="nutri-val" id="nutri-cal-exercise">0</span>
+              <span class="nutri-lbl">Queimado</span>
+            </div>
+            <div class="nutri-num-sign"><i class="fa-solid fa-equals"></i></div>
+            <div class="nutri-num-item">
+              <span class="nutri-val green-text" id="nutri-cal-remaining">2000</span>
+              <span class="nutri-lbl">Restante</span>
+            </div>
+          </div>
+          <div class="nutrition-bar-progress">
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill-gradient" id="nutri-cal-bar" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Macros Detail Panel -->
+        <div class="macros-grid">
+          <div class="macro-card-detailed protein">
+            <span class="macro-name">Proteína</span>
+            <div class="macro-ring-mini-container">
+              <span class="macro-text-val" id="nutri-p-val">0g / 130g</span>
+            </div>
+            <div class="macro-bar-fill-horizontal"><div class="macro-bar-fill-inner" id="nutri-p-bar" style="width: 0%"></div></div>
+          </div>
+          <div class="macro-card-detailed carb">
+            <span class="macro-name">Carboidrato</span>
+            <div class="macro-ring-mini-container">
+              <span class="macro-text-val" id="nutri-c-val">0g / 220g</span>
+            </div>
+            <div class="macro-bar-fill-horizontal"><div class="macro-bar-fill-inner" id="nutri-c-bar" style="width: 0%"></div></div>
+          </div>
+          <div class="macro-card-detailed fat">
+            <span class="macro-name">Gordura</span>
+            <div class="macro-ring-mini-container">
+              <span class="macro-text-val" id="nutri-f-val">0g / 65g</span>
+            </div>
+            <div class="macro-bar-fill-horizontal"><div class="macro-bar-fill-inner" id="nutri-f-bar" style="width: 0%"></div></div>
+          </div>
+        </div>
+
+        <!-- Water Tracker (Acompanhamento Hídrico) -->
+        <div class="section-container">
+          <div class="water-tracker-card">
+            <div class="water-info">
+              <h4>Controle de Hidratação</h4>
+              <div class="water-progress-nums">
+                <span class="water-current" id="water-log-text">0 ml</span>
+                <span class="water-target"> / <span id="water-target-text">2500</span> ml</span>
+              </div>
+              <div class="water-buttons">
+                <button class="btn btn-water-add" data-amount="250"><i class="fa-solid fa-glass-water"></i> +250ml</button>
+                <button class="btn btn-water-add" data-amount="500"><i class="fa-solid fa-bottle-water"></i> +500ml</button>
+                <button class="btn btn-water-reset" id="btn-water-reset" aria-label="Zerar água"><i class="fa-solid fa-arrows-rotate"></i></button>
+              </div>
+            </div>
+            <div class="water-glass-visual">
+              <div class="glass-container">
+                <div class="glass-reflection"></div>
+                <div class="water-fill" id="water-visual-fill" style="height: 0%">
+                  <div class="water-bubbles"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Meals Food Log Section -->
+        <div class="section-container">
+          <div class="section-title-row">
+            <h3>Diário Alimentar</h3>
+          </div>
+
+          <!-- Meals List -->
+          <div class="meals-log-list">
+            <!-- Breakfast -->
+            <div class="meal-group-card">
+              <div class="meal-header" onclick="toggleMealGroup('meal-breakfast-items')">
+                <div class="meal-title-desc">
+                  <i class="fa-solid fa-mug-saucer meal-icon breakfast"></i>
+                  <div>
+                    <h4>Café da Manhã</h4>
+                    <span class="meal-calories-sum" id="meal-cal-breakfast">0 kcal</span>
+                  </div>
+                </div>
+                <div class="meal-actions-wrap">
+                  <button class="btn-add-food-quick" data-meal="breakfast" aria-label="Adicionar no Café"><i class="fa-solid fa-plus"></i></button>
+                  <i class="fa-solid fa-chevron-down arrow-toggle"></i>
+                </div>
+              </div>
+              <div class="meal-items-container" id="meal-breakfast-items">
+                <div class="no-foods-placeholder">Nenhum alimento registrado.</div>
+              </div>
+            </div>
+
+            <!-- Lunch -->
+            <div class="meal-group-card">
+              <div class="meal-header" onclick="toggleMealGroup('meal-lunch-items')">
+                <div class="meal-title-desc">
+                  <i class="fa-solid fa-bowl-food meal-icon lunch"></i>
+                  <div>
+                    <h4>Almoço</h4>
+                    <span class="meal-calories-sum" id="meal-cal-lunch">0 kcal</span>
+                  </div>
+                </div>
+                <div class="meal-actions-wrap">
+                  <button class="btn-add-food-quick" data-meal="lunch" aria-label="Adicionar no Almoço"><i class="fa-solid fa-plus"></i></button>
+                  <i class="fa-solid fa-chevron-down arrow-toggle"></i>
+                </div>
+              </div>
+              <div class="meal-items-container" id="meal-lunch-items">
+                <div class="no-foods-placeholder">Nenhum alimento registrado.</div>
+              </div>
+            </div>
+
+            <!-- Dinner -->
+            <div class="meal-group-card">
+              <div class="meal-header" onclick="toggleMealGroup('meal-dinner-items')">
+                <div class="meal-title-desc">
+                  <i class="fa-solid fa-utensils meal-icon dinner"></i>
+                  <div>
+                    <h4>Jantar</h4>
+                    <span class="meal-calories-sum" id="meal-cal-dinner">0 kcal</span>
+                  </div>
+                </div>
+                <div class="meal-actions-wrap">
+                  <button class="btn-add-food-quick" data-meal="dinner" aria-label="Adicionar no Jantar"><i class="fa-solid fa-plus"></i></button>
+                  <i class="fa-solid fa-chevron-down arrow-toggle"></i>
+                </div>
+              </div>
+              <div class="meal-items-container" id="meal-dinner-items">
+                <div class="no-foods-placeholder">Nenhum alimento registrado.</div>
+              </div>
+            </div>
+
+            <!-- Snacks -->
+            <div class="meal-group-card">
+              <div class="meal-header" onclick="toggleMealGroup('meal-snacks-items')">
+                <div class="meal-title-desc">
+                  <i class="fa-solid fa-apple-whole meal-icon snacks"></i>
+                  <div>
+                    <h4>Lanches / Outros</h4>
+                    <span class="meal-calories-sum" id="meal-cal-snacks">0 kcal</span>
+                  </div>
+                </div>
+                <div class="meal-actions-wrap">
+                  <button class="btn-add-food-quick" data-meal="snacks" aria-label="Adicionar no Lanche"><i class="fa-solid fa-plus"></i></button>
+                  <i class="fa-solid fa-chevron-down arrow-toggle"></i>
+                </div>
+              </div>
+              <div class="meal-items-container" id="meal-snacks-items">
+                <div class="no-foods-placeholder">Nenhum alimento registrado.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN 5: PROGRESS & HISTORY (PROGRESSO) -->
+      <section id="screen-progress" class="app-screen">
+        <div class="screen-header">
+          <h1 class="screen-title">Histórico e Evolução</h1>
+          <p class="subtitle-text">Veja seus resultados ao longo do tempo</p>
+        </div>
+
+        <!-- Weight Tracking Card with Chart -->
+        <div class="section-container">
+          <div class="section-title-row">
+            <h3>Registro de Peso</h3>
+            <button class="btn btn-secondary btn-sm" id="btn-log-weight">Registrar Peso</button>
+          </div>
+          <div class="chart-card">
+            <canvas id="weightHistoryChart" height="200"></canvas>
+          </div>
+        </div>
+
+        <!-- Calendar Grid / Workout Logs History -->
+        <div class="section-container">
+          <h3>Histórico de Treinos</h3>
+          <div class="workout-history-list" id="workout-history-list">
+            <!-- Filled programmatically -->
+            <div class="no-history-placeholder">
+              <i class="fa-solid fa-calendar-xmark"></i>
+              <p>Nenhum treino concluído ainda. Comece hoje!</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="app-nav">
+      <button class="nav-item active" onclick="switchTab('dashboard')" data-tab="dashboard" aria-label="Início">
+        <i class="fa-solid fa-house-chimney"></i>
+        <span>Início</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('workouts')" data-tab="workouts" aria-label="Treinos">
+        <i class="fa-solid fa-dumbbell"></i>
+        <span>Treinos</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('team')" data-tab="team" aria-label="Equipe">
+        <i class="fa-solid fa-users"></i>
+        <span>Equipe</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('nutrition')" data-tab="nutrition" aria-label="Nutrição">
+        <i class="fa-solid fa-apple-whole"></i>
+        <span>Nutrição</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('progress')" data-tab="progress" aria-label="Progresso">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>Progresso</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ==================== MODALS & OVERLAYS ==================== -->
+
+  <!-- 1. ACTIVE WORKOUT PLAYER (OVERLAY SCREEN) -->
+  <div class="full-screen-overlay" id="overlay-workout-player">
+    <div class="overlay-header">
+      <button class="btn-header-back" id="btn-minimize-workout" aria-label="Minimizar">
+        <i class="fa-solid fa-chevron-down"></i>
+      </button>
+      <div class="workout-player-title-box">
+        <h3 id="player-workout-name">Treino A - Peito</h3>
+        <span class="active-pulse-indicator"><i class="fa-solid fa-circle"></i> Em progresso</span>
+      </div>
+      <button class="btn-finish-workout-top" id="btn-finish-workout">Finalizar</button>
+    </div>
+
+    <div class="workout-player-content">
+      <!-- General Timer & Stats Row -->
+      <div class="player-top-stats">
+        <div class="player-stat-col">
+          <span class="player-stat-lbl">Tempo de Treino</span>
+          <span class="player-stat-val font-mono" id="player-timer">00:00:00</span>
+        </div>
+        <div class="player-stat-col">
+          <span class="player-stat-lbl">Carga Levantada</span>
+          <span class="player-stat-val" id="player-total-volume">0 kg</span>
+        </div>
+        <div class="player-stat-col">
+          <span class="player-stat-lbl">Calorias Estimadas</span>
+          <span class="player-stat-val" id="player-est-calories">0 kcal</span>
+        </div>
+      </div>
+
+      <!-- Active Exercise Card Carousel/Detail -->
+      <div class="active-exercise-card">
+        <div class="card-header-ex">
+          <span class="badge-index-ex" id="player-ex-index">Exercício 1 de 5</span>
+          <h2 id="player-ex-name">Supino Reto com Barra</h2>
+          <span class="ex-muscles-target" id="player-ex-muscle">Peito</span>
+        </div>
+
+        <!-- Instructions Accordion -->
+        <details class="instructions-accordion">
+          <summary>Como executar este exercício <i class="fa-solid fa-chevron-down"></i></summary>
+          <ol id="player-ex-instructions">
+            <li>Deite-se no banco...</li>
+          </ol>
+        </details>
+
+        <!-- Sets and Logger Table -->
+        <div class="sets-logger-table">
+          <div class="sets-header-row">
+            <span class="col-set">SÉRIE</span>
+            <span class="col-weight">PESO (KG)</span>
+            <span class="col-reps">REPETIÇÕES</span>
+            <span class="col-check"><i class="fa-solid fa-check"></i></span>
+          </div>
+          <div class="sets-rows-container" id="player-sets-container">
+            <!-- Added programmatically: rows of sets with weight and reps fields -->
+          </div>
+        </div>
+
+        <div class="player-controls-row">
+          <button class="btn btn-secondary" id="btn-player-prev-ex"><i class="fa-solid fa-chevron-left"></i> Anterior</button>
+          <button class="btn btn-secondary" id="btn-add-set-player"><i class="fa-solid fa-plus"></i> Série</button>
+          <button class="btn btn-primary" id="btn-player-next-ex">Próximo <i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+      </div>
+      
+      <!-- Rest Timer Display (Float overlay or inside block) -->
+      <div class="rest-timer-wrapper" id="rest-timer-box" style="display: none;">
+        <div class="rest-header">
+          <span>Tempo de Descanso</span>
+          <button class="btn-rest-close" id="btn-close-rest"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="rest-body">
+          <div class="rest-timer-radial">
+            <span class="rest-timer-num" id="rest-timer-countdown">60</span>
+            <span class="rest-timer-unit">s</span>
+          </div>
+          <div class="rest-controls">
+            <button class="btn btn-rest-control" id="btn-rest-sub-10">-10s</button>
+            <button class="btn btn-rest-control accent" id="btn-rest-toggle"><i class="fa-solid fa-pause"></i></button>
+            <button class="btn btn-rest-control" id="btn-rest-add-10">+10s</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 2. WORKOUT CREATOR MODAL -->
+  <div class="modal-overlay" id="modal-workout-creator">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Criar Novo Treino Personalizado</h3>
+        <button class="btn-modal-close" onclick="closeModal('modal-workout-creator')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="workout-name-input">Nome do Treino (ex: Treino A - Superior)</label>
+          <input type="text" id="workout-name-input" placeholder="Digite o nome do treino...">
+        </div>
+        <div class="form-group">
+          <label>Selecione os Exercícios</label>
+          <p class="form-hint">Marque os exercícios que farão parte deste treino</p>
+          <div class="creator-exercise-selector" id="creator-exercise-list">
+            <!-- Populated programmatically with checkbox items -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-workout-creator')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-save-custom-workout">Salvar Treino</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. ADD FOOD MODAL -->
+  <div class="modal-overlay" id="modal-add-food">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Adicionar Alimento</h3>
+        <button class="btn-modal-close" onclick="closeModal('modal-add-food')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <!-- Quick Selector for common foods -->
+        <div class="form-group">
+          <label>Sugestões Rápidas</label>
+          <div class="food-suggestions-pills" id="food-suggestions">
+            <!-- Programmatic food pills -->
+          </div>
+        </div>
+        
+        <div class="or-separator"><span>OU INSIRA MANUALMENTE</span></div>
+
+        <input type="hidden" id="food-target-meal">
+        
+        <div class="form-group">
+          <label for="food-name-input">Nome do Alimento</label>
+          <input type="text" id="food-name-input" placeholder="Ex: Peito de Frango Grelhado">
+        </div>
+        
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="food-cal-input">Calorias (kcal)</label>
+            <input type="number" id="food-cal-input" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label for="food-prot-input">Proteína (g)</label>
+            <input type="number" id="food-prot-input" placeholder="0">
+          </div>
+        </div>
+        
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="food-carb-input">Carboidrato (g)</label>
+            <input type="number" id="food-carb-input" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label for="food-fat-input">Gordura (g)</label>
+            <input type="number" id="food-fat-input" placeholder="0">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-add-food')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-save-food">Adicionar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. PROFILE / CONFIGURATIONS MODAL -->
+  <div class="modal-overlay" id="modal-user-profile">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Configurar Perfil & Metas</h3>
+        <button class="btn-modal-close" onclick="closeModal('modal-user-profile')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="profile-name">Nome do Usuário</label>
+          <input type="text" id="profile-name" value="Atleta">
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="profile-weight">Peso Atual (kg)</label>
+            <input type="number" id="profile-weight" value="75">
+          </div>
+          <div class="form-group">
+            <label for="profile-height">Altura (cm)</label>
+            <input type="number" id="profile-height" value="175">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="profile-gender">Sexo Biológico</label>
+            <select id="profile-gender">
+              <option value="male">Masculino</option>
+              <option value="female">Feminino</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="profile-age">Idade (anos)</label>
+            <input type="number" id="profile-age" value="25" min="1" max="120">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="profile-activity">Nível de Atividade Física</label>
+          <select id="profile-activity">
+            <option value="1.2">Sedentário (Pouco ou nenhum exercício)</option>
+            <option value="1.375">Levemente Ativo (Exercício leve 1-3 dias/sem)</option>
+            <option value="1.55">Moderadamente Ativo (Exercício moderado 3-5 dias/sem)</option>
+            <option value="1.725">Muito Ativo (Exercício intenso 6-7 dias/sem)</option>
+            <option value="1.9">Extremamente Ativo (Exercício diário duplo / profissional)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="profile-goal">Objetivo Principal</label>
+          <select id="profile-goal">
+            <option value="gain">Ganho de Massa Muscular (Hipertrofia)</option>
+            <option value="lose">Perda de Peso / Definição</option>
+            <option value="maintain">Manutenção e Saúde</option>
+          </select>
+        </div>
+        <div class="divider"></div>
+        <h4 class="form-section-title">Metas Diárias Calculadas</h4>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="profile-calories">Calorias (kcal)</label>
+            <input type="number" id="profile-calories" value="2300">
+          </div>
+          <div class="form-group">
+            <label for="profile-water">Meta de Água (ml)</label>
+            <input type="number" id="profile-water-target" value="2500">
+          </div>
+        </div>
+        <div class="form-grid-three">
+          <div class="form-group">
+            <label for="profile-prot">Proteína (g)</label>
+            <input type="number" id="profile-prot" value="150">
+          </div>
+          <div class="form-group">
+            <label for="profile-carb">Carbo (g)</label>
+            <input type="number" id="profile-carb" value="250">
+          </div>
+          <div class="form-group">
+            <label for="profile-fat">Gordura (g)</label>
+            <input type="number" id="profile-fat" value="70">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-user-profile')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-save-profile">Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. SHARE WORKOUT SUMMARY MODAL -->
+  <div class="modal-overlay" id="modal-share-workout">
+    <div class="modal-card select-text">
+      <div class="modal-header">
+        <h3>🎉 Treino Concluído!</h3>
+        <button class="btn-modal-close" onclick="closeModal('modal-share-workout')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body align-center">
+        <p class="share-congratulations">Excelente trabalho! Você concluiu sua sessão de hoje com sucesso.</p>
+        
+        <!-- Canvas containing generated card -->
+        <div class="share-card-preview-wrapper">
+          <canvas id="share-card-canvas" width="400" height="500"></canvas>
+        </div>
+
+        <p class="share-hint">Compartilhe o seu progresso com seus amigos e nas redes sociais!</p>
+      </div>
+      <div class="modal-footer stacked">
+        <button class="btn btn-primary btn-block" id="btn-share-card-native">
+          <i class="fa-solid fa-share-nodes"></i> Compartilhar Treino
+        </button>
+        <button class="btn btn-secondary btn-block" id="btn-download-card">
+          <i class="fa-solid fa-download"></i> Baixar Imagem do Card
+        </button>
+        <button class="btn btn-text btn-block" onclick="closeModal('modal-share-workout')">Continuar para o Dashboard</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. LOG WEIGHT MODAL -->
+  <div class="modal-overlay" id="modal-weight-logger">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Registrar Novo Peso</h3>
+        <button class="btn-modal-close" onclick="closeModal('modal-weight-logger')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="weight-log-input">Peso Atual (kg)</label>
+          <input type="number" step="0.1" id="weight-log-input" placeholder="Ex: 75.4">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-weight-logger')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-save-weight-log">Registrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exercises instructions details modal (from Library) -->
+  <div class="modal-overlay" id="modal-exercise-detail">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="ex-detail-name">Nome do Exercício</h3>
+        <button class="btn-modal-close" onclick="closeModal('modal-exercise-detail')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="ex-detail-meta-grid">
+          <div class="ex-meta-badge">
+            <span class="lbl">Grupo Muscular</span>
+            <span class="val" id="ex-detail-muscle">Peito</span>
+          </div>
+          <div class="ex-meta-badge">
+            <span class="lbl">Equipamento</span>
+            <span class="val" id="ex-detail-equip">Halteres</span>
+          </div>
+          <div class="ex-meta-badge">
+            <span class="lbl">Dificuldade</span>
+            <span class="val" id="ex-detail-difficulty">Iniciante</span>
+          </div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <h4>Músculos Secundários</h4>
+        <p id="ex-detail-secondary" class="sec-muscles-text">Tríceps, Ombros</p>
+
+        <div class="divider"></div>
+
+        <h4>Como Fazer</h4>
+        <ol class="ex-instructions-list" id="ex-detail-instructions">
+          <!-- Filled programmatically -->
+        </ol>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary btn-block" onclick="closeModal('modal-exercise-detail')">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. EXERCISE LIBRARY (OVERLAY SCREEN) -->
+  <div class="full-screen-overlay" id="overlay-exercise-library">
+    <div class="overlay-header">
+      <button class="btn-header-back" id="btn-close-library" aria-label="Fechar">
+        <i class="fa-solid fa-chevron-down"></i>
+      </button>
+      <div class="workout-player-title-box">
+        <h3>Biblioteca de Exercícios</h3>
+        <span class="active-pulse-indicator" style="color: var(--text-secondary);"><i class="fa-solid fa-circle" style="animation: none; color: var(--accent-purple);"></i> Consulta</span>
+      </div>
+      <div style="width: 36px;"></div> <!-- Spacer -->
+    </div>
+    <div class="workout-player-content">
+      <!-- Search & Filter Controls -->
+      <div class="search-bar-wrapper">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" id="search-exercise-input" placeholder="Buscar exercício por nome...">
+      </div>
+
+      <div class="category-pills" id="exercise-category-pills">
+        <button class="pill active" data-category="all">Todos</button>
+        <button class="pill" data-category="peito">Peito</button>
+        <button class="pill" data-category="costas">Costas</button>
+        <button class="pill" data-category="pernas">Pernas</button>
+        <button class="pill" data-category="ombros">Ombros</button>
+        <button class="pill" data-category="bracos">Braços</button>
+        <button class="pill" data-category="abdomen">Abdômen</button>
+      </div>
+
+      <!-- Exercise List -->
+      <div class="exercise-grid" id="exercise-library-container">
+        <!-- Filled programmatically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. ATHLETE REGISTRATION MODAL (FOR PERSONAL TRAINERS) -->
+  <div class="modal-overlay" id="modal-create-athlete">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Cadastrar Novo Atleta</h3>
+        <button class="btn-modal-close" onclick="closeModal('modal-create-athlete')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="athlete-name-input">Nome Completo</label>
+          <input type="text" id="athlete-name-input" placeholder="Ex: Mariana Rodrigues">
+        </div>
+        <div class="form-group">
+          <label for="athlete-email-input">E-mail</label>
+          <input type="email" id="athlete-email-input" placeholder="Ex: mariana@email.com">
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="athlete-weight-input">Peso Inicial (kg)</label>
+            <input type="number" id="athlete-weight-input" placeholder="Ex: 68">
+          </div>
+          <div class="form-group">
+            <label for="athlete-height-input">Altura (cm)</label>
+            <input type="number" id="athlete-height-input" placeholder="Ex: 165">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="athlete-gender-input">Sexo Biológico</label>
+            <select id="athlete-gender-input">
+              <option value="male">Masculino</option>
+              <option value="female">Feminino</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="athlete-age-input">Idade (anos)</label>
+            <input type="number" id="athlete-age-input" placeholder="Ex: 22" value="25" min="1" max="120">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="athlete-activity-input">Nível de Atividade</label>
+          <select id="athlete-activity-input">
+            <option value="1.2">Sedentário (Pouco ou nenhum exercício)</option>
+            <option value="1.375" selected>Levemente Ativo (Exercício leve 1-3 dias/sem)</option>
+            <option value="1.55">Moderadamente Ativo (Exercício moderado 3-5 dias/sem)</option>
+            <option value="1.725">Muito Ativo (Exercício intenso 6-7 dias/sem)</option>
+            <option value="1.9">Extremamente Ativo (Exercício diário duplo / profissional)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="athlete-goal-input">Objetivo</label>
+          <select id="athlete-goal-input">
+            <option value="gain">Ganho de Massa (Hipertrofia)</option>
+            <option value="lose">Perda de Gordura / Definição</option>
+            <option value="maintain">Manutenção e Saúde</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="athlete-calories-input">Meta Calórica Diária (kcal)</label>
+          <input type="number" id="athlete-calories-input" placeholder="Ex: 1800">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-create-athlete')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-save-new-athlete">Salvar Atleta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. SEND MESSAGE TO ATHLETE MODAL -->
+  <div class="modal-overlay" id="modal-send-message">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Enviar Orientação para <span id="span-msg-athlete-name">Aluno</span></h3>
+        <button class="btn-modal-close" onclick="closeModal('modal-send-message')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="msg-target-athlete-id">
+        <div class="form-group">
+          <label for="textarea-athlete-feedback">Mensagem / Observações</label>
+          <textarea id="textarea-athlete-feedback" rows="4" placeholder="Ex: Excelente progresso essa semana! Aumente 2kg no supino reto se conseguir manter a execução." style="width: 100%; background-color: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; color: white; font-family: inherit; resize: none;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-send-message')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-send-message-action">Enviar Mensagem</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <!-- Custom audio tag for rest timer completion -->
+  <audio id="timer-chime" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav" preload="auto"></audio>
+
+  <!-- Custom JS Modules -->
+  <script src="exercises.js"></script>
+  <script src="share-card.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
