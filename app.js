@@ -16,18 +16,31 @@ let state = {
     },
     gender: "male",
     age: 25,
-    activityLevel: "1.375"
+    activityLevel: "1.375",
+    photo: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
   },
   workouts: [], // Templates
   workoutHistory: [], // Log of completed workouts
   nutritionLogs: {}, // Key: YYYY-MM-DD -> { meals: { breakfast: [], lunch: [], dinner: [], snacks: [] }, water: 0 }
   weightLogs: [], // Array of { date: 'YYYY-MM-DD', weight: Number }
   teamRole: "athlete", // athlete, personal
+  currentUserEmail: null,
+  userAccounts: [],
   linkedPersonal: null, // { name, cref }
   athleteMessages: [], // Messages received by the Athlete
   myAthletes: [], // List of athletes managed by the Personal Trainer
+  customExercises: [], // Exercises adicionados pelo usuário
   simulatedInboxes: {} // Simulated mailboxes keyed by Athlete ID
 };
+
+let dynamicExerciseDatabase = [];
+let currentWorkoutEditingId = null;
+let shareCardSummary = null;
+let shareModalPhotoData = null;
+let lastFocusedModalTrigger = null;
+let confirmDialogResolver = null;
+let finishWorkoutConfirmPending = false;
+let finishWorkoutConfirmTimeout = null;
 
 // Global variables for active workout player
 let activeSession = null;
@@ -86,41 +99,71 @@ const DEFAULT_WEIGHT_LOGS = [
 // ==================== LOCAL STORAGE PERSISTENCE ====================
 const STORAGE_KEY = "gymflow_state_data_v1";
 
-function saveToLocalStorage() {
+async function saveAppState() {
+  if (window.gymflowDatabase && window.gymflowDatabase.saveStateToDB) {
+    await window.gymflowDatabase.saveStateToDB(state);
+  }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function loadFromLocalStorage() {
-  const localData = localStorage.getItem(STORAGE_KEY);
-  if (localData) {
-    try {
-      state = JSON.parse(localData);
-      
-      // Safety checks for migrations
-      if (!state.userProfile) state.userProfile = {};
-      if (!state.userProfile.gender) state.userProfile.gender = "male";
-      if (!state.userProfile.age) state.userProfile.age = 25;
-      if (!state.userProfile.activityLevel) state.userProfile.activityLevel = "1.375";
-      if (!state.workouts || state.workouts.length === 0) state.workouts = DEFAULT_WORKOUT_ROUTINES;
-      if (!state.weightLogs || state.weightLogs.length === 0) state.weightLogs = DEFAULT_WEIGHT_LOGS;
-      if (!state.nutritionLogs) state.nutritionLogs = {};
-      if (!state.workoutHistory) state.workoutHistory = [];
-      if (!state.teamRole) state.teamRole = "athlete";
-      if (state.linkedPersonal === undefined) state.linkedPersonal = null;
-      if (!state.athleteMessages) state.athleteMessages = [];
-      if (!state.myAthletes || state.myAthletes.length === 0) state.myAthletes = [];
-      if (!state.simulatedInboxes) state.simulatedInboxes = {};
-    } catch (e) {
-      console.error("Erro ao carregar dados do LocalStorage, reiniciando.", e);
-      initializeDefaultState();
-    }
+async function loadAppState() {
+  let loadedState = null;
+  if (window.gymflowDatabase && window.gymflowDatabase.loadStateFromDB) {
+    loadedState = await window.gymflowDatabase.loadStateFromDB();
+  }
+
+  if (loadedState) {
+    state = loadedState;
   } else {
+    const localData = localStorage.getItem(STORAGE_KEY);
+    if (localData) {
+      try {
+        state = JSON.parse(localData);
+      } catch (e) {
+        console.error("Erro ao carregar dados do LocalStorage, reiniciando.", e);
+        initializeDefaultState();
+        return;
+      }
+    } else {
+      initializeDefaultState();
+      return;
+    }
+  }
+
+  try {
+    if (!state.userProfile) state.userProfile = {};
+    if (!state.userProfile.gender) state.userProfile.gender = "male";
+    if (!state.userProfile.age) state.userProfile.age = 25;
+    if (!state.userProfile.activityLevel) state.userProfile.activityLevel = "1.375";
+    if (!state.userProfile.photo) state.userProfile.photo = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80";
+    if (!state.workouts || state.workouts.length === 0) state.workouts = DEFAULT_WORKOUT_ROUTINES;
+    if (!state.weightLogs || state.weightLogs.length === 0) state.weightLogs = DEFAULT_WEIGHT_LOGS;
+    if (!state.customExercises) state.customExercises = [];
+    dynamicExerciseDatabase = [...EXERCISE_DATABASE, ...state.customExercises];
+    if (!state.nutritionLogs) state.nutritionLogs = {};
+    if (!state.workoutHistory) state.workoutHistory = [];
+    if (!state.teamRole) state.teamRole = "athlete";
+    if (!state.userAccounts) state.userAccounts = [];
+    if (state.currentUserEmail === undefined) state.currentUserEmail = null;
+    if (state.linkedPersonal === undefined) state.linkedPersonal = null;
+    if (!state.athleteMessages) state.athleteMessages = [];
+    if (!state.myAthletes || state.myAthletes.length === 0) state.myAthletes = [];
+    if (!state.simulatedInboxes) state.simulatedInboxes = {};
+  } catch (e) {
+    console.error("Erro ao carregar dados do IndexedDB/LocalStorage, reiniciando.", e);
     initializeDefaultState();
   }
 }
 function initializeDefaultState() {
   state.workouts = DEFAULT_WORKOUT_ROUTINES;
   state.weightLogs = DEFAULT_WEIGHT_LOGS;
+  state.customExercises = [];
+  state.userAccounts = [
+    { name: "Atleta Demo", email: "aluno@gymflow.com", password: "123456", role: "athlete" },
+    { name: "Personal Demo", email: "personal@gymflow.com", password: "123456", role: "personal" }
+  ];
+  state.currentUserEmail = null;
+  dynamicExerciseDatabase = [...EXERCISE_DATABASE];
   state.workoutHistory = [
     {
       id: "hist_1",
@@ -163,7 +206,7 @@ function initializeDefaultState() {
   };
 
   state.teamRole = "athlete";
-  state.linkedPersonal = { name: "Prof. Roberto Costa", cref: "CREF 098765-G/SP" };
+  state.linkedPersonal = { name: "Prof. Roberto Costa", cref: "CREF 098765-G/SP", photo: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80" };
   state.athleteMessages = [
     {
       date: "26/06/2026",
@@ -195,7 +238,7 @@ function initializeDefaultState() {
   ];
   state.simulatedInboxes = {};
   
-  saveToLocalStorage();
+  saveAppState();
 }
 
 // Helper: format YYYY-MM-DD
@@ -221,7 +264,13 @@ function switchTab(tabId) {
   document.querySelectorAll('.app-screen').forEach(screen => {
     screen.classList.remove('active');
   });
-  const activeScreen = document.getElementById(`screen-${tabId}`);
+
+  let activeScreenId = `screen-${tabId}`;
+  if (tabId === 'dashboard' && state.teamRole === 'personal') {
+    activeScreenId = 'screen-personal-dashboard';
+  }
+
+  const activeScreen = document.getElementById(activeScreenId);
   if (activeScreen) {
     activeScreen.classList.add('active');
   }
@@ -242,17 +291,320 @@ function switchTab(tabId) {
 
 // ==================== MODAL HELPERS ====================
 function openModal(modalId) {
-  document.getElementById(modalId).classList.add('open');
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  lastFocusedModalTrigger = document.activeElement;
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('modal-open');
+
+  const dialog = modal.querySelector('.modal-card');
+  if (dialog) {
+    if (!dialog.hasAttribute('tabindex')) {
+      dialog.setAttribute('tabindex', '-1');
+    }
+    dialog.focus();
+  }
 }
 
-function closeModal(modalId) {
-  document.getElementById(modalId).classList.remove('open');
+function closeModal(modalId, confirmResult = null) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('modal-open');
+
+  if (modalId === 'modal-confirm-dialog' && typeof confirmDialogResolver === 'function') {
+    confirmDialogResolver(confirmResult === true);
+    confirmDialogResolver = null;
+  }
+
+  if (lastFocusedModalTrigger && typeof lastFocusedModalTrigger.focus === 'function') {
+    lastFocusedModalTrigger.focus();
+  }
+  lastFocusedModalTrigger = null;
+}
+
+function showConfirmDialog(message) {
+  return new Promise(resolve => {
+    confirmDialogResolver = resolve;
+    const messageEl = document.getElementById('confirm-dialog-message');
+    if (messageEl) messageEl.innerText = message;
+    openModal('modal-confirm-dialog');
+    const yesButton = document.getElementById('btn-confirm-yes');
+    if (yesButton) yesButton.focus();
+  });
+}
+
+function closeConfirmDialog(result) {
+  closeModal('modal-confirm-dialog', result);
+}
+
+function showAppToast(message, type = 'info') {
+  const toastRoot = document.getElementById('app-toast-container');
+  if (!toastRoot) {
+    console.log(`[GymFlow Notification]: ${message}`);
+    return;
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `app-toast ${type}`;
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
+  toast.textContent = message;
+  toastRoot.appendChild(toast);
+
+  requestAnimationFrame(() => toast.classList.add('show'));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    toast.addEventListener('transitionend', () => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, { once: true });
+  }, 3200);
+
+  const badge = document.querySelector('#btn-notifications .badge');
+  if (badge && type !== 'error') {
+    badge.style.display = 'block';
+  }
+}
+
+function showPlayerStatusBanner(message, type = 'info') {
+  const banner = document.getElementById('player-status-banner');
+  if (!banner) return;
+  banner.textContent = message;
+  banner.className = `player-status-banner ${type}`;
+  banner.style.display = 'flex';
+
+  if (type === 'success') {
+    setTimeout(() => {
+      banner.style.opacity = '0';
+      setTimeout(() => { banner.style.display = 'none'; banner.style.opacity = '1'; }, 300);
+    }, 4200);
+  }
+}
+
+function clearPlayerStatusBanner() {
+  const banner = document.getElementById('player-status-banner');
+  if (!banner) return;
+  banner.style.display = 'none';
+  banner.textContent = '';
+  banner.className = 'player-status-banner';
+}
+
+function showMiniStatusBadge(message, type = 'info') {
+  const badge = document.getElementById('mini-status-badge');
+  if (!badge) return;
+
+  badge.textContent = message;
+  badge.className = `mini-status-badge ${type}`;
+  badge.style.opacity = '1';
+  badge.style.pointerEvents = 'auto';
+
+  if (badge.timeoutId) {
+    clearTimeout(badge.timeoutId);
+  }
+
+  badge.timeoutId = setTimeout(() => {
+    badge.style.opacity = '0';
+    badge.style.pointerEvents = 'none';
+    badge.timeoutId = null;
+  }, 4200);
 }
 
 // ==================== DASHBOARD POPULATION ====================
 function updateDashboard() {
   // Update name & biometrics
   document.getElementById('span-user-name').innerText = state.userProfile.name;
+  document.getElementById('user-avatar').src = state.userProfile.photo || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80";
+  
+  // Streak counter (dummy mock update or calculated from history)
+  document.getElementById('stat-streak').innerText = state.workoutHistory.length + 3;
+
+  // Hydration summary
+  const today = getTodayDateString();
+  const dayLog = state.nutritionLogs[today] || { meals: { breakfast: [], lunch: [], dinner: [], snacks: [] }, water: 0 };
+  document.getElementById('stat-water').innerText = `${dayLog.water}ml`;
+
+  // Featured Daily Workout
+  const featuredTitle = document.getElementById('featured-workout-title');
+  const featuredDesc = document.getElementById('featured-workout-desc');
+  if (state.workouts.length > 0) {
+    const todayIndex = new Date().getDay() % state.workouts.length;
+    const routine = state.workouts[todayIndex];
+    featuredTitle.innerText = routine.name;
+    featuredDesc.innerText = `${routine.exercises.length} exercícios programados para hoje.`;
+  } else {
+    featuredTitle.innerText = "Nenhum treino criado";
+    featuredDesc.innerText = "Vá na aba Treinos para criar sua rotina.";
+  }
+
+  // Nutrition Rings on Dashboard
+  const { totalCal, totalProt, totalCarb, totalFat } = calculateDailyNutritionTotals(dayLog);
+  document.getElementById('dash-cal-consumed').innerText = Math.round(totalCal);
+  document.getElementById('dash-cal-target').innerText = state.userProfile.caloriesTarget;
+
+  // Update SVG Ring
+  const ringCircle = document.getElementById('dash-cal-ring');
+  const radius = ringCircle.r.baseVal.value;
+  const circumference = radius * 2 * Math.PI;
+  ringCircle.style.strokeDasharray = `${circumference} ${circumference}`;
+  
+  const progressPercent = Math.min(totalCal / state.userProfile.caloriesTarget, 1);
+  const offset = circumference - progressPercent * circumference;
+  ringCircle.style.strokeDashoffset = offset;
+
+  // Dashboard Macro Bars
+  document.getElementById('dash-p-val').innerText = `${Math.round(totalProt)}g / ${state.userProfile.macrosTarget.protein}g`;
+  const protPct = Math.min((totalProt / state.userProfile.macrosTarget.protein) * 100, 100);
+  document.getElementById('dash-p-fill').style.width = `${protPct}%`;
+
+  document.getElementById('dash-c-val').innerText = `${Math.round(totalCarb)}g / ${state.userProfile.macrosTarget.carb}g`;
+  const carbPct = Math.min((totalCarb / state.userProfile.macrosTarget.carb) * 100, 100);
+  document.getElementById('dash-c-fill').style.width = `${carbPct}%`;
+
+  document.getElementById('dash-f-val').innerText = `${Math.round(totalFat)}g / ${state.userProfile.macrosTarget.fat}g`;
+  const fatPct = Math.min((totalFat / state.userProfile.macrosTarget.fat) * 100, 100);
+  document.getElementById('dash-f-fill').style.width = `${fatPct}%`;
+
+  // Render weekly frequency summary
+  renderWeeklyCalendar();
+}
+
+function showAppMain() {
+  document.getElementById('screen-auth').classList.remove('active');
+  document.getElementById('app-shell').classList.remove('hidden');
+}
+
+function hideAppMain() {
+  document.getElementById('app-shell').classList.add('hidden');
+  document.getElementById('screen-auth').classList.add('active');
+}
+
+function loginUser() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value.trim();
+
+  if (!email || !password) {
+    showAppToast('Preencha email e senha para continuar.', 'error');
+    return;
+  }
+
+  const user = state.userAccounts.find(u => u.email === email && u.password === password);
+  if (!user) {
+    showAppToast('Email ou senha incorretos. Tente novamente.', 'error');
+    return;
+  }
+
+  state.currentUserEmail = user.email;
+  state.teamRole = user.role;
+  state.userProfile.name = user.name;
+  state.userProfile.email = user.email;
+  saveAppState();
+
+  showAppMain();
+  updateDashboard();
+  updateTeamTab();
+  switchTab('dashboard');
+  showAppToast(`Bem-vindo de volta, ${user.name}!`, 'success');
+}
+
+function logoutUser() {
+  state.currentUserEmail = null;
+  state.teamRole = 'athlete';
+  saveAppState();
+  hideAppMain();
+  switchTab('dashboard');
+  showAppToast('Sessão encerrada. Faça login novamente.', 'info');
+}
+
+function registerUser() {
+  const name = document.getElementById('register-name').value.trim();
+  const email = document.getElementById('register-email').value.trim();
+  const password = document.getElementById('register-password').value.trim();
+  const role = document.getElementById('register-role').value;
+
+  if (!name || !email || !password) {
+    showAppToast('Preencha todos os campos para criar sua conta.', 'error');
+    return;
+  }
+
+  if (state.userAccounts.some(u => u.email === email)) {
+    showAppToast('Este email já está cadastrado. Use outro ou faça login.', 'error');
+    return;
+  }
+
+  state.userAccounts.push({ name, email, password, role });
+  saveAppState();
+  showAppToast('Conta criada com sucesso! Faça login para continuar.', 'success');
+  document.getElementById('register-name').value = '';
+  document.getElementById('register-email').value = '';
+  document.getElementById('register-password').value = '';
+  document.getElementById('register-role').value = 'athlete';
+}
+
+function renderPersonalDashboard() {
+  const headerTitle = document.querySelector('#screen-personal-dashboard .welcome-text');
+  const subtitle = document.querySelector('#screen-personal-dashboard .subtitle-text');
+  const metrics = document.getElementById('personal-dashboard-metrics');
+  const actionPanel = document.getElementById('personal-dashboard-actions');
+  const athleteList = document.getElementById('personal-athlete-summary');
+
+  if (headerTitle) headerTitle.innerHTML = `Olá, <span id="span-user-name">${state.userProfile.name}</span>! 👋`;
+  if (subtitle) subtitle.innerText = 'Dashboard do Personal Trainer para gerenciar alunos, treinos e avaliações.';
+
+  metrics.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-icon-wrapper purple"><i class="fa-solid fa-users"></i></div>
+      <div class="stat-info">
+        <span class="stat-value">${state.myAthletes.length}</span>
+        <span class="stat-label">Alunos</span>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon-wrapper green"><i class="fa-solid fa-dumbbell"></i></div>
+      <div class="stat-info">
+        <span class="stat-value">${state.workouts.length}</span>
+        <span class="stat-label">Treinos ativos</span>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon-wrapper blue"><i class="fa-solid fa-scale-balanced"></i></div>
+      <div class="stat-info">
+        <span class="stat-value">${state.myAthletes.reduce((sum, ath) => sum + (ath.assessments?.length || 0), 0)}</span>
+        <span class="stat-label">Avaliações pendentes</span>
+      </div>
+    </div>
+  `;
+
+  actionPanel.innerHTML = `
+    <button class="btn btn-primary btn-sm" onclick="switchTab('workouts')"><i class="fa-solid fa-dumbbell"></i> Gerenciar Treinos</button>
+    <button class="btn btn-secondary btn-sm" onclick="switchTab('team')"><i class="fa-solid fa-users"></i> Ver Alunos</button>
+    <button class="btn btn-secondary btn-sm" onclick="switchTab('progress')"><i class="fa-solid fa-scale"></i> Avaliação Física</button>
+  `;
+
+  athleteList.innerHTML = state.myAthletes.length === 0 ? `
+    <div class="no-history-placeholder" style="padding: 32px 16px;">
+      <i class="fa-solid fa-user-doctor" style="font-size: 2rem;"></i>
+      <p>Você ainda não cadastrou alunos. Use a aba Equipe para começar.</p>
+    </div>
+  ` : state.myAthletes.slice(0, 4).map(ath => `
+    <div class="personal-athlete-card">
+      <strong>${ath.name}</strong>
+      <span>${ath.email}</span>
+      <small>${ath.weight}kg • ${ath.height}cm • ${ath.caloriesTarget} kcal</small>
+    </div>
+  `).join('');
+}
+
+function updateDashboard() {
+  if (state.teamRole === 'personal') {
+    renderPersonalDashboard();
+    return;
+  }
+
+  // Update name & biometrics
+  document.getElementById('span-user-name').innerText = state.userProfile.name;
+  document.getElementById('user-avatar').src = state.userProfile.photo || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80";
   
   // Streak counter (dummy mock update or calculated from history)
   document.getElementById('stat-streak').innerText = state.workoutHistory.length + 3;
@@ -384,6 +736,9 @@ function renderWorkoutsList() {
         <button class="btn-routine-start" onclick="startWorkoutSession('${workout.id}')" title="Iniciar">
           <i class="fa-solid fa-play"></i>
         </button>
+        <button class="btn-routine-edit" onclick="openWorkoutCreator('${workout.id}')" title="Editar">
+          <i class="fa-solid fa-pen"></i>
+        </button>
         <button class="btn-routine-delete" onclick="deleteWorkoutRoutine('${workout.id}')" title="Excluir">
           <i class="fa-solid fa-trash-can"></i>
         </button>
@@ -394,11 +749,41 @@ function renderWorkoutsList() {
 }
 
 function deleteWorkoutRoutine(id) {
-  if (confirm("Tem certeza que deseja excluir esta ficha de treino?")) {
-    state.workouts = state.workouts.filter(w => w.id !== id);
-    saveToLocalStorage();
-    renderWorkoutsList();
+  showConfirmDialog("Tem certeza que deseja excluir esta ficha de treino?")
+    .then(confirmed => {
+      if (!confirmed) return;
+      state.workouts = state.workouts.filter(w => w.id !== id);
+      saveAppState();
+      renderWorkoutsList();
+    });
+}
+
+function openWorkoutCreator(workoutId = null) {
+  currentWorkoutEditingId = workoutId;
+  const title = document.getElementById('workout-creator-title');
+  const saveBtn = document.getElementById('btn-save-custom-workout');
+  const nameInput = document.getElementById('workout-name-input');
+
+  populateCreatorExercisesList();
+
+  if (workoutId) {
+    const workout = state.workouts.find(w => w.id === workoutId);
+    if (workout) {
+      title.innerText = 'Editar Treino';
+      saveBtn.innerText = 'Atualizar Treino';
+      nameInput.value = workout.name;
+      workout.exercises.forEach(exId => {
+        const checkbox = document.querySelector(`#creator-exercise-list input[value="${exId}"]`);
+        if (checkbox) checkbox.checked = true;
+      });
+    }
+  } else {
+    title.innerText = 'Criar Novo Treino Personalizado';
+    saveBtn.innerText = 'Salvar Treino';
+    nameInput.value = '';
   }
+
+  openModal('modal-workout-creator');
 }
 
 // Initialize Workout Creator Modal Checkboxes
@@ -407,7 +792,7 @@ function populateCreatorExercisesList() {
   listContainer.innerHTML = '';
 
   // Sort exercises by muscle group category
-  const sorted = [...EXERCISE_DATABASE].sort((a, b) => a.category.localeCompare(b.category));
+  const sorted = [...dynamicExerciseDatabase].sort((a, b) => a.category.localeCompare(b.category));
   
   sorted.forEach(ex => {
     const item = document.createElement('div');
@@ -435,7 +820,7 @@ function saveCustomWorkout() {
   const name = nameInput.value.trim();
   
   if (!name) {
-    alert("Por favor, digite um nome para o treino.");
+    showAppToast("Por favor, digite um nome para o treino.", 'error');
     return;
   }
 
@@ -446,37 +831,36 @@ function saveCustomWorkout() {
   });
 
   if (checkedExercises.length === 0) {
-    alert("Por favor, selecione ao menos 1 exercício para o treino.");
+    showAppToast("Por favor, selecione ao menos 1 exercício para o treino.", 'error');
     return;
   }
 
-  const newWorkout = {
-    id: 'workout_' + Date.now(),
+  const selectedWorkoutId = currentWorkoutEditingId;
+  const workoutData = {
+    id: selectedWorkoutId || 'workout_' + Date.now(),
     name: name,
     exercises: checkedExercises
   };
 
-  state.workouts.push(newWorkout);
-  saveToLocalStorage();
+  if (selectedWorkoutId) {
+    state.workouts = state.workouts.map(w => w.id === selectedWorkoutId ? workoutData : w);
+    showAppToast("Treino atualizado com sucesso!");
+  } else {
+    state.workouts.push(workoutData);
+    showAppToast("Ficha de treino criada com sucesso!");
+  }
+
+  saveAppState();
   
   // Reset form
   nameInput.value = '';
+  currentWorkoutEditingId = null;
+  document.getElementById('workout-creator-title').innerText = 'Criar Novo Treino Personalizado';
+  document.getElementById('btn-save-custom-workout').innerText = 'Salvar Treino';
   document.querySelectorAll('#creator-exercise-list input[type="checkbox"]').forEach(chk => chk.checked = false);
   
   closeModal('modal-workout-creator');
   renderWorkoutsList();
-  
-  // Celebration notification
-  showAppToast("Ficha de treino criada com sucesso!");
-}
-
-// Helper for UI feedback toast
-function showAppToast(message) {
-  // Standard simple alert for prototype or native styling
-  console.log(`[GymFlow Notification]: ${message}`);
-  // Add badge dot to notification bell
-  const badge = document.querySelector('#btn-notifications .badge');
-  if (badge) badge.style.display = 'block';
 }
 
 // ==================== EXERCISE LIBRARY ====================
@@ -484,7 +868,7 @@ function renderExerciseLibrary(searchQuery = '', filterCategory = 'all') {
   const container = document.getElementById('exercise-library-container');
   container.innerHTML = '';
 
-  const filtered = EXERCISE_DATABASE.filter(ex => {
+  const filtered = dynamicExerciseDatabase.filter(ex => {
     const matchesSearch = ex.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           ex.primaryMuscle.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = filterCategory === 'all' || ex.category === filterCategory;
@@ -518,7 +902,7 @@ function renderExerciseLibrary(searchQuery = '', filterCategory = 'all') {
 }
 
 function showExerciseDetailModal(id) {
-  const ex = EXERCISE_DATABASE.find(item => item.id === id);
+  const ex = dynamicExerciseDatabase.find(item => item.id === id);
   if (!ex) return;
 
   document.getElementById('ex-detail-name').innerText = ex.name;
@@ -536,6 +920,56 @@ function showExerciseDetailModal(id) {
   });
 
   openModal('modal-exercise-detail');
+}
+
+function openNewExerciseModal() {
+  document.getElementById('new-ex-name').value = '';
+  document.getElementById('new-ex-category').value = 'peito';
+  document.getElementById('new-ex-equipment').value = '';
+  document.getElementById('new-ex-primary-muscle').value = '';
+  document.getElementById('new-ex-difficulty').value = 'Iniciante';
+  document.getElementById('new-ex-secondary-muscles').value = '';
+  document.getElementById('new-ex-instructions').value = '';
+  openModal('modal-new-exercise');
+}
+
+function saveNewExercise() {
+  const name = document.getElementById('new-ex-name').value.trim();
+  const category = document.getElementById('new-ex-category').value;
+  const equipment = document.getElementById('new-ex-equipment').value.trim() || 'Peso Corporal';
+  const primaryMuscle = document.getElementById('new-ex-primary-muscle').value.trim();
+  const difficulty = document.getElementById('new-ex-difficulty').value;
+  const secondaryInput = document.getElementById('new-ex-secondary-muscles').value.trim();
+  const instructionsText = document.getElementById('new-ex-instructions').value.trim();
+
+  if (!name || !primaryMuscle || !instructionsText) {
+    showAppToast('Por favor, preencha nome, músculo principal e instruções.', 'error');
+    return;
+  }
+
+  const secondaryMuscles = secondaryInput ? secondaryInput.split(',').map(part => part.trim()).filter(Boolean) : [];
+  const instructions = instructionsText.split(';').map(step => step.trim()).filter(Boolean);
+
+  const newExercise = {
+    id: 'custom_ex_' + Date.now(),
+    name,
+    category,
+    primaryMuscle,
+    secondaryMuscles,
+    instructions,
+    difficulty,
+    equipment,
+    met: 5.0
+  };
+
+  state.customExercises.push(newExercise);
+  dynamicExerciseDatabase = [...dynamicExerciseDatabase, newExercise];
+  saveAppState();
+
+  closeModal('modal-new-exercise');
+  renderExerciseLibrary();
+  populateCreatorExercisesList();
+  showAppToast('Exercício adicionado com sucesso!');
 }
 
 // ==================== NUTRITION & FOOD LOGGER ====================
@@ -645,7 +1079,7 @@ function addWater(amount) {
   }
   
   state.nutritionLogs[today].water += amount;
-  saveToLocalStorage();
+  saveAppState();
   updateNutritionTab();
 }
 
@@ -653,7 +1087,7 @@ function resetWater() {
   const today = getTodayDateString();
   if (state.nutritionLogs[today]) {
     state.nutritionLogs[today].water = 0;
-    saveToLocalStorage();
+    saveAppState();
     updateNutritionTab();
   }
 }
@@ -697,7 +1131,7 @@ function saveFoodLog() {
   const fat = Number(document.getElementById('food-fat-input').value);
 
   if (!name || isNaN(cal)) {
-    alert("Nome e Calorias são campos obrigatórios.");
+    showAppToast("Nome e Calorias são campos obrigatórios.", 'error');
     return;
   }
 
@@ -709,7 +1143,7 @@ function saveFoodLog() {
   const newFoodItem = { name, cal, prot, carb, fat };
   state.nutritionLogs[today].meals[mealKey].push(newFoodItem);
   
-  saveToLocalStorage();
+  saveAppState();
   closeModal('modal-add-food');
   updateNutritionTab();
   
@@ -722,7 +1156,7 @@ function deleteFoodLogItem(mealKey, index) {
   const today = getTodayDateString();
   if (state.nutritionLogs[today] && state.nutritionLogs[today].meals[mealKey]) {
     state.nutritionLogs[today].meals[mealKey].splice(index, 1);
-    saveToLocalStorage();
+    saveAppState();
     updateNutritionTab();
   }
 }
@@ -763,7 +1197,7 @@ function startWorkoutSession(routineId) {
   });
 
   if (activeSession.exercises.length === 0) {
-    alert("Este treino não possui exercícios cadastrados.");
+    showAppToast("Este treino não possui exercícios cadastrados.", 'error');
     return;
   }
 
@@ -955,13 +1389,22 @@ function updateVolumeAndCalories() {
   return { totalVolume, totalSetsCount, caloriesBurned };
 }
 
-function finishActiveWorkout() {
+async function finishActiveWorkout() {
   // Confirm if session is in progress
   const hasLoggedSets = activeSession.exercises.some(ex => ex.sets.some(s => s.logged));
   if (!hasLoggedSets) {
-    if (!confirm("Você não registrou nenhuma série ainda. Deseja finalizar mesmo assim?")) {
+    if (!finishWorkoutConfirmPending) {
+      finishWorkoutConfirmPending = true;
+      showPlayerStatusBanner('Nenhuma série registrada ainda. Toque em Finalizar novamente para encerrar o treino.', 'warning');
+      finishWorkoutConfirmTimeout = setTimeout(() => {
+        finishWorkoutConfirmPending = false;
+        clearPlayerStatusBanner();
+      }, 8000);
       return;
     }
+    finishWorkoutConfirmPending = false;
+    clearTimeout(finishWorkoutConfirmTimeout);
+    clearPlayerStatusBanner();
   }
 
   // Calculate final metrics
@@ -993,7 +1436,7 @@ function finishActiveWorkout() {
 
   // Add to state
   state.workoutHistory.unshift(logEntry);
-  saveToLocalStorage();
+  saveAppState();
 
   // Close player
   document.getElementById('overlay-workout-player').classList.remove('open');
@@ -1036,7 +1479,55 @@ function openWorkoutSharingModal(logEntry) {
   // Generate canvas rendering
   generateShareCard(canvas, summary);
 
+  shareCardSummary = summary;
+  shareModalPhotoData = null;
+  const photoPreview = document.getElementById('share-photo-preview');
+  if (photoPreview) {
+    photoPreview.src = 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=150&auto=format&fit=crop&q=80';
+  }
+
   openModal('modal-share-workout');
+}
+
+function handleSharePhotoInput(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    showAppToast('Por favor, selecione um arquivo de imagem.', 'error');
+    event.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    shareModalPhotoData = reader.result;
+    if (shareCardSummary) {
+      shareCardSummary.photoData = shareModalPhotoData;
+    }
+    const preview = document.getElementById('share-photo-preview');
+    if (preview) preview.src = reader.result;
+
+    const canvas = document.getElementById('share-card-canvas');
+    if (canvas && shareCardSummary) {
+      generateShareCard(canvas, shareCardSummary);
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeSharePhoto() {
+  shareModalPhotoData = null;
+  if (shareCardSummary) {
+    delete shareCardSummary.photoData;
+  }
+  const input = document.getElementById('share-photo-input');
+  if (input) input.value = '';
+  const preview = document.getElementById('share-photo-preview');
+  if (preview) preview.src = 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=150&auto=format&fit=crop&q=80';
+  const canvas = document.getElementById('share-card-canvas');
+  if (canvas && shareCardSummary) {
+    generateShareCard(canvas, shareCardSummary);
+  }
 }
 
 function shareCardNative() {
@@ -1057,7 +1548,7 @@ function shareCardNative() {
     } else {
       // Fallback copy info
       navigator.clipboard.writeText(`Treino Finalizado no GymFlow! 🏋️‍♂️\nFicha: ${activeSession ? activeSession.name : 'Meu Treino'}\nConfira meu progresso de hoje!`);
-      alert("A API de compartilhamento nativo não é suportada neste navegador. Os dados do treino foram copiados para a sua área de transferência!");
+      showAppToast("A API de compartilhamento nativo não é suportada neste navegador. Os dados do treino foram copiados para a sua área de transferência!", 'info');
     }
   }, 'image/png');
 }
@@ -1200,7 +1691,7 @@ function saveWeightLog() {
   const weight = Number(weightInput.value);
 
   if (isNaN(weight) || weight <= 0) {
-    alert("Por favor, digite um peso válido.");
+    showAppToast("Por favor, digite um peso válido.", 'error');
     return;
   }
 
@@ -1216,7 +1707,7 @@ function saveWeightLog() {
   // Update profile weight as well
   state.userProfile.weight = weight;
   
-  saveToLocalStorage();
+  saveAppState();
   closeModal('modal-weight-logger');
   
   // Refresh Chart & views
@@ -1231,6 +1722,8 @@ function openUserProfileModal() {
   document.getElementById('profile-weight').value = state.userProfile.weight;
   document.getElementById('profile-height').value = state.userProfile.height;
   document.getElementById('profile-gender').value = state.userProfile.gender || "male";
+  document.getElementById('profile-photo-preview').src = state.userProfile.photo || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80";
+  document.getElementById('profile-photo-input').value = '';
   document.getElementById('profile-age').value = state.userProfile.age || 25;
   document.getElementById('profile-activity').value = state.userProfile.activityLevel || "1.375";
   document.getElementById('profile-goal').value = state.userProfile.goal;
@@ -1304,6 +1797,8 @@ function saveUserProfile() {
   const carb = Number(document.getElementById('profile-carb').value);
   const fat = Number(document.getElementById('profile-fat').value);
 
+  const photoUrl = document.getElementById('profile-photo-preview').src;
+
   // Update State
   state.userProfile = {
     name,
@@ -1319,7 +1814,8 @@ function saveUserProfile() {
       protein: prot,
       carb: carb,
       fat: fat
-    }
+    },
+    photo: photoUrl
   };
 
   // Add new weight log if weight changed
@@ -1331,13 +1827,32 @@ function saveUserProfile() {
     state.weightLogs.push({ date: today, weight: weight });
   }
 
-  saveToLocalStorage();
+  saveAppState();
   closeModal('modal-user-profile');
   updateDashboard();
   showAppToast("Perfil e metas atualizados com sucesso!");
 }
 
 // ==================== TEAM & CONNECTION DASHBOARD ====================
+function previewImageFromInput(inputId, targetImageId) {
+  const fileInput = document.getElementById(inputId);
+  const imgTarget = document.getElementById(targetImageId);
+  if (!fileInput || !imgTarget || !fileInput.files || fileInput.files.length === 0) {
+    return;
+  }
+  const file = fileInput.files[0];
+  if (!file.type.startsWith('image/')) {
+    showAppToast('Por favor, selecione um arquivo de imagem.', 'error');
+    fileInput.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    imgTarget.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function updateTeamTab() {
   // Render active segmented button
   document.getElementById('btn-role-athlete').classList.remove('active');
@@ -1358,7 +1873,7 @@ function updateTeamTab() {
 
 function setTeamRole(role) {
   state.teamRole = role;
-  saveToLocalStorage();
+  saveAppState();
   updateTeamTab();
 }
 
@@ -1373,8 +1888,16 @@ function renderAthleteView() {
     linkedView.style.display = 'block';
     messagesSection.style.display = 'block';
     
-    document.getElementById('linked-personal-name').innerText = state.linkedPersonal.name;
-    document.getElementById('linked-personal-cref').innerText = state.linkedPersonal.cref;
+    const badge = document.getElementById('linked-personal-badge');
+    badge.innerHTML = `
+      <div class="avatar-decor">
+        ${state.linkedPersonal.photo ? `<img src="${state.linkedPersonal.photo}" alt="Foto do Personal" class="personal-avatar">` : '<i class="fa-solid fa-user-tie"></i>'}
+      </div>
+      <div>
+        <h3 id="linked-personal-name">${state.linkedPersonal.name}</h3>
+        <span class="cref-tag" id="linked-personal-cref">${state.linkedPersonal.cref}</span>
+      </div>
+    `;
     
     renderAthleteMessages();
   } else {
@@ -1389,11 +1912,12 @@ function linkPersonalAction() {
   const cref = document.getElementById('input-link-personal-cref').value.trim();
   
   if (!name || !cref) {
-    alert("Nome e registro CREF são obrigatórios.");
+    showAppToast("Nome e registro CREF são obrigatórios.", 'error');
     return;
   }
   
-  state.linkedPersonal = { name, cref };
+  const personalPhoto = document.getElementById('link-personal-photo-preview').src;
+  state.linkedPersonal = { name, cref, photo: personalPhoto };
   
   // Appends a welcome message automatically
   state.athleteMessages.unshift({
@@ -1402,18 +1926,20 @@ function linkPersonalAction() {
     text: `Olá! Fico feliz em ser seu treinador. A partir de agora, analisarei seus treinos concluídos e atualizarei suas metas no diário nutricional.`
   });
   
-  saveToLocalStorage();
+  saveAppState();
   renderAthleteView();
   showAppToast("Personal vinculado com sucesso!");
 }
 
 function unlinkPersonalAction() {
-  if (confirm("Deseja mesmo se desvincular do seu Personal Trainer? Suas mensagens anteriores serão limpas.")) {
-    state.linkedPersonal = null;
-    state.athleteMessages = [];
-    saveToLocalStorage();
-    renderAthleteView();
-  }
+  showConfirmDialog("Deseja mesmo se desvincular do seu Personal Trainer? Suas mensagens anteriores serão limpas.")
+    .then(confirmed => {
+      if (!confirmed) return;
+      state.linkedPersonal = null;
+      state.athleteMessages = [];
+      saveAppState();
+      renderAthleteView();
+    });
 }
 
 function renderAthleteMessages() {
@@ -1508,7 +2034,7 @@ function saveNewAthlete() {
   let caloriesTarget = Number(document.getElementById('athlete-calories-input').value);
   
   if (!name || !email || isNaN(weight) || isNaN(height)) {
-    alert("Preencha todos os campos obrigatórios.");
+    showAppToast("Preencha todos os campos obrigatórios.", 'error');
     return;
   }
 
@@ -1545,7 +2071,7 @@ function saveNewAthlete() {
   };
   
   state.myAthletes.push(newAth);
-  saveToLocalStorage();
+  saveAppState();
   closeModal('modal-create-athlete');
   renderPersonalView();
   showAppToast("Aluno cadastrado com sucesso!");
@@ -1578,11 +2104,13 @@ function triggerAthleteAutoCaloriesRecalc() {
 }
 
 function removeAthleteAction(id) {
-  if (confirm("Deseja realmente remover este aluno da sua lista de gestão?")) {
-    state.myAthletes = state.myAthletes.filter(a => a.id !== id);
-    saveToLocalStorage();
-    renderPersonalView();
-  }
+  showConfirmDialog("Deseja realmente remover este aluno da sua lista de gestão?")
+    .then(confirmed => {
+      if (!confirmed) return;
+      state.myAthletes = state.myAthletes.filter(a => a.id !== id);
+      saveAppState();
+      renderPersonalView();
+    });
 }
 
 function openSendMessageModal(athleteId, athleteName) {
@@ -1597,7 +2125,7 @@ function sendFeedbackToAthlete() {
   const text = document.getElementById('textarea-athlete-feedback').value.trim();
   
   if (!text) {
-    alert("Digite uma mensagem de orientação.");
+    showAppToast("Digite uma mensagem de orientação.", 'error');
     return;
   }
   
@@ -1617,18 +2145,20 @@ function sendFeedbackToAthlete() {
     });
   }
   
-  saveToLocalStorage();
+  saveAppState();
   closeModal('modal-send-message');
   showAppToast("Mensagem enviada com sucesso para o aluno!");
 }
 
-function simulateAthleteLogin(athleteId) {
+async function simulateAthleteLogin(athleteId) {
   const athlete = state.myAthletes.find(a => a.id === athleteId);
   if (!athlete) return;
   
-  if (confirm(`Deseja simular o login como ${athlete.name}? As estatísticas do diário nutricional e do perfil serão atualizadas com os dados dele.`)) {
-    // Modify profile to simulate athlete account login
-    state.userProfile.name = athlete.name;
+  const confirmed = await showConfirmDialog(`Deseja simular o login como ${athlete.name}? As estatísticas do diário nutricional e do perfil serão atualizadas com os dados dele.`);
+  if (!confirmed) return;
+
+  // Modify profile to simulate athlete account login
+  state.userProfile.name = athlete.name;
     state.userProfile.weight = athlete.weight;
     state.userProfile.height = athlete.height;
     state.userProfile.goal = athlete.goal;
@@ -1656,15 +2186,15 @@ function simulateAthleteLogin(athleteId) {
     state.linkedPersonal = { name: "Prof. Roberto (Personal)", cref: "CREF 098765-G/SP" };
     state.teamRole = 'athlete';
     
-    saveToLocalStorage();
+    saveAppState();
     
     // Alert user
-    alert(`Simulação iniciada! Agora você está visualizando o app como o atleta: ${athlete.name}.`);
+    showAppToast(`Simulação iniciada! Agora você está visualizando o app como o atleta: ${athlete.name}.`, 'success');
     
     // Redirect to Dashboard
     switchTab('dashboard');
   }
-}
+
 
 // ==================== BIND DOM EVENTS ====================
 function setupEventListeners() {
@@ -1687,13 +2217,11 @@ function setupEventListeners() {
   });
 
   document.getElementById('btn-create-workout').addEventListener('click', () => {
-    populateCreatorExercisesList();
-    openModal('modal-workout-creator');
+    openWorkoutCreator();
   });
 
   document.getElementById('btn-open-creator').addEventListener('click', () => {
-    populateCreatorExercisesList();
-    openModal('modal-workout-creator');
+    openWorkoutCreator();
   });
 
   document.getElementById('btn-save-custom-workout').addEventListener('click', saveCustomWorkout);
@@ -1756,6 +2284,10 @@ function setupEventListeners() {
   document.getElementById('profile-age').addEventListener('input', triggerAutoMacrosUpdate);
   document.getElementById('profile-activity').addEventListener('change', triggerAutoMacrosUpdate);
   document.getElementById('profile-goal').addEventListener('change', triggerAutoMacrosUpdate);
+  document.getElementById('profile-photo-input').addEventListener('change', () => previewImageFromInput('profile-photo-input', 'profile-photo-preview'));
+  document.getElementById('input-link-personal-photo').addEventListener('change', () => previewImageFromInput('input-link-personal-photo', 'link-personal-photo-preview'));
+  document.getElementById('profile-photo-input').addEventListener('change', () => previewImageFromInput('profile-photo-input', 'profile-photo-preview'));
+  document.getElementById('input-link-personal-photo').addEventListener('change', () => previewImageFromInput('input-link-personal-photo', 'link-personal-photo-preview'));
 
   // Recalculations updates inside athlete creation
   document.getElementById('athlete-weight-input').addEventListener('input', triggerAthleteAutoCaloriesRecalc);
@@ -1767,9 +2299,8 @@ function setupEventListeners() {
 
   // Active workout controllers
   document.getElementById('btn-minimize-workout').addEventListener('click', () => {
-    if (confirm("Você quer pausar e fechar a visualização do treino? (O tempo continuará rodando)")) {
-      document.getElementById('overlay-workout-player').classList.remove('open');
-    }
+    document.getElementById('overlay-workout-player').classList.remove('open');
+    showMiniStatusBadge('Treino minimizado. O tempo continua rodando.', 'info');
   });
   document.getElementById('btn-finish-workout').addEventListener('click', finishActiveWorkout);
   document.getElementById('btn-player-next-ex').addEventListener('click', playerNextExercise);
@@ -1797,12 +2328,20 @@ function setupEventListeners() {
   // Sharing buttons
   document.getElementById('btn-share-card-native').addEventListener('click', shareCardNative);
   document.getElementById('btn-download-card').addEventListener('click', downloadCardImage);
+  document.getElementById('share-photo-input').addEventListener('change', handleSharePhotoInput);
+  document.getElementById('btn-remove-share-photo').addEventListener('click', removeSharePhoto);
 
   // Exercise Library triggers
   document.getElementById('btn-open-library').addEventListener('click', () => {
     renderExerciseLibrary();
     document.getElementById('overlay-exercise-library').classList.add('open');
   });
+
+  document.getElementById('btn-open-new-exercise').addEventListener('click', () => {
+    openNewExerciseModal();
+  });
+
+  document.getElementById('btn-save-new-exercise').addEventListener('click', saveNewExercise);
 
   document.getElementById('btn-close-library').addEventListener('click', () => {
     document.getElementById('overlay-exercise-library').classList.remove('open');
@@ -1832,20 +2371,70 @@ function setupEventListeners() {
 }
 
 // ==================== APP BOOTSTRAP ====================
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
+  // Initialize IndexedDB and migrate existing LocalStorage if needed
+  if (window.gymflowDatabase && window.gymflowDatabase.initDatabase) {
+    await window.gymflowDatabase.initDatabase();
+    if (window.gymflowDatabase.migrateLocalStorageState) {
+      await window.gymflowDatabase.migrateLocalStorageState();
+    }
+  }
+
   // Load database files, init storage configs
-  loadFromLocalStorage();
+  await loadAppState();
   
   // Set up listeners triggers
   setupEventListeners();
 
   // Populate first loads
-  updateDashboard();
+  if (state.currentUserEmail) {
+    showAppMain();
+    updateDashboard();
+    updateTeamTab();
+    switchTab('dashboard');
+  } else {
+    hideAppMain();
+  }
   
   // Notifications click listener (just clear dot)
+  document.querySelectorAll('.modal-overlay').forEach(modal => {
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    if (!modal.hasAttribute('aria-hidden')) {
+      modal.setAttribute('aria-hidden', 'true');
+    }
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        closeModal(modal.id);
+      }
+    });
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      const openModalEl = document.querySelector('.modal-overlay.open');
+      if (openModalEl) {
+        closeModal(openModalEl.id);
+      }
+    }
+  });
+
   document.getElementById('btn-notifications').addEventListener('click', () => {
     const badge = document.querySelector('#btn-notifications .badge');
     if (badge) badge.style.display = 'none';
-    alert("Você está em dia com todos os treinos da semana! Continue focado.");
+    showAppToast('Você está em dia com todos os treinos da semana! Continue focado.', 'success');
   });
+
+  const logoutBtn = document.getElementById('btn-logout');
+  if (logoutBtn) logoutBtn.addEventListener('click', logoutUser);
+  const loginBtn = document.getElementById('btn-login');
+  if (loginBtn) loginBtn.addEventListener('click', loginUser);
+  const registerBtn = document.getElementById('btn-register');
+  if (registerBtn) registerBtn.addEventListener('click', registerUser);
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('Service Worker registrado:', reg.scope))
+      .catch(err => console.warn('Falha ao registrar Service Worker:', err));
+  }
 });

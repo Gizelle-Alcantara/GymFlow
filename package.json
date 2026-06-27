@@ -1,0 +1,13 @@
+{
+  "name": "gymflow",
+  "version": "1.0.0",
+  "description": "GymFlow - Treinos e Nutrição Personalizada",
+  "private": true,
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node -c app.js exercises.js share-card.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GymFlow - Treinos & Nutrição Personalizada</title>
   <!-- SEO Meta Tags -->
   <meta name="description" content="GymFlow - Seu aplicativo completo para treinos de musculação personalizados, acompanhamento nutricional detalhado e compartilhamento de conquistas.">
@@ -14,6 +14,9 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Custom CSS -->
   <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <!-- Chart.js for data visualization -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Canvas Confetti for celebrating finished workouts -->
@@ -24,9 +27,65 @@
   <!-- Background decorative glows -->
   <div class="bg-glow bg-glow-1"></div>
   <div class="bg-glow bg-glow-2"></div>
+  <div id="app-toast-container" class="app-toast-container" aria-live="polite" aria-atomic="false"></div>
+
+  <!-- Authentication Screen -->
+  <section id="screen-auth" class="app-screen active auth-screen">
+    <div class="auth-card">
+      <div class="auth-hero">
+        <div>
+          <span class="badge-featured">Bem-vindo</span>
+          <h1>GymFlow</h1>
+          <p>Entre na sua conta ou crie um perfil de Personal Trainer / Aluno para começar.</p>
+        </div>
+        <div class="auth-illustration">
+          <i class="fa-solid fa-dumbbell"></i>
+        </div>
+      </div>
+
+      <div class="auth-form-grid">
+        <div class="auth-panel auth-panel-left">
+          <h2>Login</h2>
+          <div class="form-group">
+            <label for="login-email">Email</label>
+            <input type="email" id="login-email" placeholder="seu@email.com">
+          </div>
+          <div class="form-group">
+            <label for="login-password">Senha</label>
+            <input type="password" id="login-password" placeholder="••••••••">
+          </div>
+          <button class="btn btn-primary btn-block" id="btn-login">Entrar</button>
+        </div>
+
+        <div class="auth-panel auth-panel-right">
+          <h2>Cadastro</h2>
+          <div class="form-group">
+            <label for="register-name">Nome completo</label>
+            <input type="text" id="register-name" placeholder="Maria Silva">
+          </div>
+          <div class="form-group">
+            <label for="register-email">Email</label>
+            <input type="email" id="register-email" placeholder="seu@email.com">
+          </div>
+          <div class="form-group">
+            <label for="register-password">Senha</label>
+            <input type="password" id="register-password" placeholder="••••••••">
+          </div>
+          <div class="form-group">
+            <label for="register-role">Sou</label>
+            <select id="register-role">
+              <option value="athlete">Aluno</option>
+              <option value="personal">Personal Trainer</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary btn-block" id="btn-register">Criar conta</button>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- App Wrapper (Mobile Mockup on Desktop, Fullscreen on Mobile) -->
-  <div class="app-container">
+  <div id="app-shell" class="app-shell hidden">
     
     <!-- App Header -->
     <header class="app-header">
@@ -39,6 +98,9 @@
           <i class="fa-regular fa-bell"></i>
           <span class="badge"></span>
         </button>
+        <button id="btn-logout" class="header-btn" aria-label="Sair">
+          <i class="fa-solid fa-right-from-bracket"></i>
+        </button>
         <button id="btn-user-profile" class="header-btn-profile" aria-label="Perfil do Usuário">
           <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Avatar" id="user-avatar">
         </button>
@@ -48,7 +110,7 @@
     <!-- Main Screens Container (TABS) -->
     <main class="app-main">
       
-      <!-- SCREEN 1: DASHBOARD (INÍCIO) -->
+      <!-- SCREEN 1: DASHBOARD (ALUNO) -->
       <section id="screen-dashboard" class="app-screen active">
         <div class="screen-header">
           <h1 class="welcome-text">Olá, <span id="span-user-name">Atleta</span>! 👋</h1>
@@ -150,6 +212,32 @@
         </div>
       </section>
 
+      <!-- SCREEN 1B: PERSONAL DASHBOARD -->
+      <section id="screen-personal-dashboard" class="app-screen">
+        <div class="screen-header">
+          <h1 class="welcome-text">Olá, <span id="personal-user-name">Personal</span>! 👋</h1>
+          <p class="subtitle-text">Dashboard do Personal Trainer para gerenciar alunos, treinos e avaliações.</p>
+        </div>
+
+        <div class="quick-stats-grid" id="personal-dashboard-metrics">
+          <!-- Metrics inserted by JavaScript -->
+        </div>
+
+        <div class="section-container" id="personal-dashboard-actions">
+          <!-- Action buttons inserted by JavaScript -->
+        </div>
+
+        <div class="section-container">
+          <div class="section-title-row">
+            <h3>Alunos em destaque</h3>
+            <button class="btn btn-secondary btn-sm" onclick="switchTab('team')">Ver todos os alunos</button>
+          </div>
+          <div class="personal-athlete-summary" id="personal-athlete-summary">
+            <!-- Athlete cards inserted by JavaScript -->
+          </div>
+        </div>
+      </section>
+
       <!-- SCREEN 2: WORKOUTS (TREINOS) -->
       <section id="screen-workouts" class="app-screen">
         <div class="screen-header-row">
@@ -212,6 +300,16 @@
               <label for="input-link-personal-name">Nome do Personal</label>
               <input type="text" id="input-link-personal-name" placeholder="Ex: Prof. Roberto Costa">
             </div>
+            <div class="form-group personal-photo-group">
+              <label>Foto do Personal (opcional)</label>
+              <div class="personal-photo-upload">
+                <div class="photo-preview-frame personal-small-preview">
+                  <img id="link-personal-photo-preview" src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80" alt="Foto do Personal">
+                </div>
+                <label for="input-link-personal-photo" class="btn btn-secondary btn-sm">Selecionar Foto</label>
+                <input type="file" id="input-link-personal-photo" accept="image/*" style="display:none">
+              </div>
+            </div>
             <div class="form-group">
               <label for="input-link-personal-cref">CREF / Registro Profissional</label>
               <input type="text" id="input-link-personal-cref" placeholder="Ex: CREF 123456-G/SP">
@@ -223,7 +321,7 @@
 
           <!-- Linked State Card -->
           <div class="card-base athlete-connection-card" id="athlete-linked-view" style="display: none;">
-            <div class="personal-badge-info">
+            <div class="personal-badge-info" id="linked-personal-badge">
               <div class="avatar-decor"><i class="fa-solid fa-user-tie"></i></div>
               <div>
                 <h3 id="linked-personal-name">Prof. Roberto Costa</h3>
@@ -476,7 +574,7 @@
     </main>
 
     <!-- Bottom Navigation Bar -->
-    <nav class="app-nav">
+    <nav class="app-nav" role="navigation" aria-label="Navegação principal">
       <button class="nav-item active" onclick="switchTab('dashboard')" data-tab="dashboard" aria-label="Início">
         <i class="fa-solid fa-house-chimney"></i>
         <span>Início</span>
@@ -514,6 +612,9 @@
       </div>
       <button class="btn-finish-workout-top" id="btn-finish-workout">Finalizar</button>
     </div>
+
+    <div id="mini-status-badge" class="mini-status-badge" role="status" aria-live="polite"></div>
+    <div id="player-status-banner" class="player-status-banner" role="status" aria-live="polite" style="display:none;"></div>
 
     <div class="workout-player-content">
       <!-- General Timer & Stats Row -->
@@ -591,10 +692,10 @@
   </div>
 
   <!-- 2. WORKOUT CREATOR MODAL -->
-  <div class="modal-overlay" id="modal-workout-creator">
+  <div class="modal-overlay" id="modal-workout-creator" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>Criar Novo Treino Personalizado</h3>
+        <h3 id="workout-creator-title">Criar Novo Treino Personalizado</h3>
         <button class="btn-modal-close" onclick="closeModal('modal-workout-creator')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
@@ -613,6 +714,64 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('modal-workout-creator')">Cancelar</button>
         <button class="btn btn-primary" id="btn-save-custom-workout">Salvar Treino</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-new-exercise">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Cadastrar Novo Exercício</h3>
+        <button class="btn-modal-close" onclick="closeModal('modal-new-exercise')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="new-ex-name">Nome do Exercício</label>
+          <input type="text" id="new-ex-name" placeholder="Ex: Remada Unilateral">
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="new-ex-category">Categoria</label>
+            <select id="new-ex-category">
+              <option value="peito">Peito</option>
+              <option value="costas">Costas</option>
+              <option value="pernas">Pernas</option>
+              <option value="ombros">Ombros</option>
+              <option value="bracos">Braços</option>
+              <option value="abdomen">Abdômen</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="new-ex-equipment">Equipamento</label>
+            <input type="text" id="new-ex-equipment" placeholder="Ex: Halteres">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="new-ex-primary-muscle">Músculo Principal</label>
+            <input type="text" id="new-ex-primary-muscle" placeholder="Ex: Dorsal">
+          </div>
+          <div class="form-group">
+            <label for="new-ex-difficulty">Dificuldade</label>
+            <select id="new-ex-difficulty">
+              <option value="Iniciante">Iniciante</option>
+              <option value="Intermediário">Intermediário</option>
+              <option value="Avançado">Avançado</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="new-ex-secondary-muscles">Músculos Secundários</label>
+          <input type="text" id="new-ex-secondary-muscles" placeholder="Separados por vírgula">
+        </div>
+        <div class="form-group">
+          <label for="new-ex-instructions">Instruções</label>
+          <textarea id="new-ex-instructions" rows="4" placeholder="Digite passos separados por ponto e vírgula"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-new-exercise')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-save-new-exercise">Salvar Exercício</button>
       </div>
     </div>
   </div>
@@ -679,6 +838,15 @@
         <button class="btn-modal-close" onclick="closeModal('modal-user-profile')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
+        <div class="profile-photo-upload">
+          <div class="photo-preview-frame">
+            <img id="profile-photo-preview" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Avatar do Usuário">
+          </div>
+          <div class="profile-photo-actions">
+            <label for="profile-photo-input" class="btn btn-secondary btn-sm">Selecionar Foto</label>
+            <input type="file" id="profile-photo-input" accept="image/*" style="display:none">
+          </div>
+        </div>
         <div class="form-group">
           <label for="profile-name">Nome do Usuário</label>
           <input type="text" id="profile-name" value="Atleta">
@@ -768,7 +936,16 @@
       <div class="modal-body align-center">
         <p class="share-congratulations">Excelente trabalho! Você concluiu sua sessão de hoje com sucesso.</p>
         
-        <!-- Canvas containing generated card -->
+        <div class="share-photo-upload-row">
+          <label class="btn btn-secondary btn-sm" for="share-photo-input"><i class="fa-solid fa-camera"></i> Adicionar Foto Pós-Treino</label>
+          <button type="button" class="btn btn-text" id="btn-remove-share-photo">Remover Foto</button>
+          <input type="file" id="share-photo-input" accept="image/*" style="display:none">
+        </div>
+
+        <div class="share-photo-preview-box">
+          <img id="share-photo-preview" src="https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=150&auto=format&fit=crop&q=80" alt="Prévia da Foto do Treino">
+        </div>
+
         <div class="share-card-preview-wrapper">
           <canvas id="share-card-canvas" width="400" height="500"></canvas>
         </div>
@@ -876,6 +1053,9 @@
         <button class="pill" data-category="bracos">Braços</button>
         <button class="pill" data-category="abdomen">Abdômen</button>
       </div>
+      <button class="btn btn-primary btn-sm" id="btn-open-new-exercise" style="margin-bottom: 16px; width: 100%;">
+        <i class="fa-solid fa-plus"></i> Adicionar novo exercício
+      </button>
 
       <!-- Exercise List -->
       <div class="exercise-grid" id="exercise-library-container">
@@ -975,12 +1155,30 @@
   </div>
   </div>
 
+  <!-- Custom confirmation dialog -->
+  <div class="modal-overlay" id="modal-confirm-dialog" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Confirmação</h3>
+        <button class="btn-modal-close" onclick="closeConfirmDialog(false)" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-confirm-text" id="confirm-dialog-message">Tem certeza?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" type="button" onclick="closeConfirmDialog(false)">Cancelar</button>
+        <button class="btn btn-primary" type="button" id="btn-confirm-yes" onclick="closeConfirmDialog(true)">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Custom audio tag for rest timer completion -->
   <audio id="timer-chime" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav" preload="auto"></audio>
 
   <!-- Custom JS Modules -->
   <script src="exercises.js"></script>
   <script src="share-card.js"></script>
+  <script src="db.js"></script>
   <script src="app.js"></script>
 
 </body>

@@ -247,28 +247,53 @@ function generateShareCard(canvas, summary) {
   ctx.lineTo(width - 45, gridY + rowHeight * 2 - 5);
   ctx.stroke();
 
-  // 8. Motivational Quote
-  const quotes = [
-    '"O único treino ruim é aquele que você não fez."',
-    '"Consistência vence o talento todos os dias."',
-    '"A disciplina te leva aonde a motivação não consegue."',
-    '"Foco, força e progresso constante."',
-    '"Seu corpo pode aguentar quase tudo. Convença sua mente."'
-  ];
-  
-  // Select quote based on workout name hash or random
-  const quoteIndex = Math.abs(wName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % quotes.length;
-  const quote = quotes[quoteIndex];
+  // 8. Optional post-workout photo
+  if (summary.photoData) {
+    const img = new Image();
+    img.onload = () => {
+      const photoX = 45;
+      const photoY = height - 220;
+      const photoW = width - 90;
+      const photoH = 100;
 
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-  ctx.font = 'italic 500 12px Outfit, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(quote, width / 2, height - 85);
+      // Subtle border and shadow for the photo
+      ctx.save();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.fillRect(photoX - 5, photoY - 5, photoW + 10, photoH + 10);
+      ctx.restore();
 
-  // 9. Footer Brand Info
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-  ctx.font = '500 10px Outfit, sans-serif';
-  ctx.fillText('GERADO PELO APP GYMFLOW', width / 2, height - 35);
+      ctx.drawImage(img, photoX, photoY, photoW, photoH);
+      drawMotivationalQuote();
+      drawFooter();
+    };
+    img.src = summary.photoData;
+  } else {
+    drawMotivationalQuote();
+    drawFooter();
+  }
+
+  function drawMotivationalQuote() {
+    const quotes = [
+      '"O único treino ruim é aquele que você não fez."',
+      '"Consistência vence o talento todos os dias."',
+      '"A disciplina te leva aonde a motivação não consegue."',
+      '"Foco, força e progresso constante."',
+      '"Seu corpo pode aguentar quase tudo. Convença sua mente."'
+    ];
+    const quoteIndex = Math.abs(wName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % quotes.length;
+    const quote = quotes[quoteIndex];
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.font = 'italic 500 12px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(quote, width / 2, height - 15);
+  }
+
+  function drawFooter() {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.font = '500 10px Outfit, sans-serif';
+    ctx.fillText('GERADO PELO APP GYMFLOW', width / 2, height - 35);
+  }
 }
 
 if (typeof module !== 'undefined') {
